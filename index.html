@@ -334,36 +334,60 @@ def restart():
             }
         });
 
-        // Mobile touch controls
-        document.getElementById("btn-up").addEventListener("click", () => {
-            if (pyodide) pyodide.runPython("set_direction('up')");
-        });
-        document.getElementById("btn-down").addEventListener("click", () => {
-            if (pyodide) pyodide.runPython("set_direction('down')");
-        });
-        document.getElementById("btn-left").addEventListener("click", () => {
-            if (pyodide) pyodide.runPython("set_direction('left')");
-        });
-        document.getElementById("btn-right").addEventListener("click", () => {
-            if (pyodide) pyodide.runPython("set_direction('right')");
-        });
-        document.getElementById("restart-btn").addEventListener("click", () => {
-            if (pyodide && !gameState.running) {
-                pyodide.runPython("restart()");
-                startGame();
-            } else if (pyodide) {
-                // Allow restart even during gameplay on mobile
+        // Function to handle direction change
+        function handleDirectionChange(direction) {
+            if (pyodide) {
+                pyodide.runPython(`set_direction('${direction}')`);
+            }
+        }
+
+        // Function to handle restart
+        function handleRestart() {
+            if (pyodide) {
                 pyodide.runPython("restart()");
                 startGame();
             }
+        }
+
+        // Mobile touch controls - Add both touchstart and click events
+        const btnUp = document.getElementById("btn-up");
+        const btnDown = document.getElementById("btn-down");
+        const btnLeft = document.getElementById("btn-left");
+        const btnRight = document.getElementById("btn-right");
+        const restartBtn = document.getElementById("restart-btn");
+
+        // Add touchstart events
+        btnUp.addEventListener("touchstart", function (e) {
+            e.preventDefault();
+            handleDirectionChange("up");
         });
 
-        // Prevent scrolling when touching game controls
-        document.querySelectorAll('.control-btn').forEach(btn => {
-            btn.addEventListener('touchstart', function (e) {
-                e.preventDefault();
-            });
+        btnDown.addEventListener("touchstart", function (e) {
+            e.preventDefault();
+            handleDirectionChange("down");
         });
+
+        btnLeft.addEventListener("touchstart", function (e) {
+            e.preventDefault();
+            handleDirectionChange("left");
+        });
+
+        btnRight.addEventListener("touchstart", function (e) {
+            e.preventDefault();
+            handleDirectionChange("right");
+        });
+
+        restartBtn.addEventListener("touchstart", function (e) {
+            e.preventDefault();
+            handleRestart();
+        });
+
+        // Keep click events for compatibility
+        btnUp.addEventListener("click", () => handleDirectionChange("up"));
+        btnDown.addEventListener("click", () => handleDirectionChange("down"));
+        btnLeft.addEventListener("click", () => handleDirectionChange("left"));
+        btnRight.addEventListener("click", () => handleDirectionChange("right"));
+        restartBtn.addEventListener("click", handleRestart);
 
         loadPyodideAndRun();
     </script>
