@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Untitled Snake Game</title>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: #f8f9fa;
+            color: #212529;
+            margin: 0;
+            padding: 15px;
+            touch-action: manipulation;
+            min-height: 100vh;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        h1 {
+            margin: 10px 0;
+            color: #343a40;
+        }
+
+        #game-board {
+            background-color: #000;
+            color: #fff;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            white-space: pre;
+            font-size: 16px;
+            line-height: 1.2;
+            margin: 15px 0;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            overflow-x: auto;
+            box-sizing: border-box;
+            font-family: monospace;
+            text-align: center;
+        }
+
+        #score {
+            font-size: 18px;
+            margin: 10px 0;
+            font-weight: bold;
+            color: #343a40;
+        }
+
+        #instructions {
+            font-size: 14px;
+            color: #6c757d;
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-areas:
+                ". up ."
+                "left . right"
+                ". down .";
+            grid-gap: 10px;
+            margin-top: 20px;
+        }
+
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            background-color: #6c757d;
+            border: none;
+            color: white;
+            font-size: 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            border-radius: 50%;
+        }
+
+        .control-btn:active {
+            background-color: #5a6268;
+            transform: scale(0.95);
+        }
+
+        #btn-up {
+            grid-area: up;
+        }
+
+        #btn-left {
+            grid-area: left;
+        }
+
+        #btn-right {
+            grid-area: right;
+        }
+
+        #btn-down {
+            grid-area: down;
+        }
+
+        .mobile-controls {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #restart-btn {
+            margin-top: 20px;
+            padding: 10px 25px;
+            background-color: #007bff;
+            border: none;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+            transition: background-color 0.2s;
+            width: 100%;
+            max-width: 200px;
+        }
+
+        #restart-btn:active {
+            background-color: #0069d9;
+            transform: scale(0.98);
+        }
+
+        /* Hide controls on larger screens */
+        @media (min-width: 768px) {
+            .mobile-controls {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="game-container">
+        <h1>Untitled Snake Game</h1>
+        <div id="score">Score: 0</div>
+        <pre id="game-board"></pre>
+        <p id="instructions">Use arrow keys or buttons to move. Press 'R' to restart after game over.</p>
+
+        <div class="mobile-controls">
+            <div class="controls">
+                <button id="btn-up" class="control-btn">↑</button>
+                <button id="btn-left" class="control-btn">←</button>
+                <button id="btn-right" class="control-btn">→</button>
+                <button id="btn-down" class="control-btn">↓</button>
+            </div>
+            <button id="restart-btn">RESTART</button>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+            return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+            if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+                try {
+                    var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                    var firstSheetName = workbook.SheetNames[0];
+                    var worksheet = workbook.Sheets[firstSheetName];
+
+                    // Convert sheet to JSON to filter blank rows
+                    var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                    // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                    var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                    // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                    var headerRowIndex = filteredData.findIndex((row, index) =>
+                        row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                    );
+                    // Fallback
+                    if (headerRowIndex === -1 || headerRowIndex > 25) {
+                        headerRowIndex = 0;
+                    }
+
+                    // Convert filtered JSON back to CSV
+                    var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                    csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                    return csv;
+                } catch (e) {
+                    console.error(e);
+                    return "";
+                }
+            }
+            return gk_fileData[filename] || "";
+        }
+
+        let pyodide;
+        let gameState = { running: false, direction: "right" };
+
+        async function loadPyodideAndRun() {
+            pyodide = await loadPyodide();
+            await pyodide.runPythonAsync(`
+import random
+import js
+
+WIDTH = 20
+HEIGHT = 10
+SNAKE = [(5, 5)]
+FOOD = (10, 5)
+DIRECTION = "right"
+SCORE = 0
+GAME_OVER = False
+
+def init_game():
+    global SNAKE, FOOD, DIRECTION, SCORE, GAME_OVER
+    SNAKE = [(5, 5)]
+    FOOD = (random.randint(0, WIDTH-1), random.randint(0, HEIGHT-1))
+    DIRECTION = "right"
+    SCORE = 0
+    GAME_OVER = False
+
+def update():
+    global SNAKE, FOOD, DIRECTION, SCORE, GAME_OVER
+    if GAME_OVER:
+        return
+
+    head = SNAKE[0]
+    if DIRECTION == "right":
+        new_head = (head[0] + 1, head[1])
+    elif DIRECTION == "left":
+        new_head = (head[0] - 1, head[1])
+    elif DIRECTION == "up":
+        new_head = (head[0], head[1] - 1)
+    elif DIRECTION == "down":
+        new_head = (head[0], head[1] + 1)
+
+    if (new_head[0] < 0 or new_head[0] >= WIDTH or
+        new_head[1] < 0 or new_head[1] >= HEIGHT or
+        new_head in SNAKE):
+        GAME_OVER = True
+        return
+
+    SNAKE.insert(0, new_head)
+    if new_head == FOOD:
+        SCORE += 1
+        FOOD = (random.randint(0, WIDTH-1), random.randint(0, HEIGHT-1))
+    else:
+        SNAKE.pop()
+
+def set_direction(new_direction):
+    global DIRECTION
+    opposites = {"up": "down", "down": "up", "left": "right", "right": "left"}
+    if new_direction != opposites.get(DIRECTION):
+        DIRECTION = new_direction
+
+def render():
+    board = [[" " for _ in range(WIDTH)] for _ in range(HEIGHT)]
+    for x, y in SNAKE:
+        board[y][x] = "O"
+    fx, fy = FOOD
+    board[fy][fx] = "X"
+    if GAME_OVER:
+        message = "Game Over! Score: " + str(SCORE) + " Press R to restart."
+        return "\\n".join(["".join(row) for row in board]) + "\\n\\n" + message
+    return "\\n".join(["".join(row) for row in board])
+
+def restart():
+    init_game()
+            `);
+            startGame();
+        }
+
+        function startGame() {
+            gameState.running = true;
+            updateGame();
+        }
+
+        async function updateGame() {
+            if (!gameState.running) return;
+            await pyodide.runPythonAsync("update()");
+            let board = await pyodide.runPythonAsync("render()");
+            let score = await pyodide.globals.get("SCORE");
+            let gameOver = await pyodide.globals.get("GAME_OVER");
+            document.getElementById("game-board").textContent = board.replace(/\\n/g, "\n");
+            document.getElementById("score").textContent = `Score: ${score}`;
+            if (!gameOver) {
+                setTimeout(updateGame, 200); // Update every 200ms
+            } else {
+                gameState.running = false;
+            }
+        }
+
+        // Keyboard controls
+        document.addEventListener("keydown", (event) => {
+            if (!pyodide) return;
+            switch (event.key) {
+                case "ArrowUp":
+                    pyodide.runPython("set_direction('up')");
+                    break;
+                case "ArrowDown":
+                    pyodide.runPython("set_direction('down')");
+                    break;
+                case "ArrowLeft":
+                    pyodide.runPython("set_direction('left')");
+                    break;
+                case "ArrowRight":
+                    pyodide.runPython("set_direction('right')");
+                    break;
+                case "r":
+                case "R":
+                    if (!gameState.running) {
+                        pyodide.runPython("restart()");
+                        startGame();
+                    }
+                    break;
+            }
+        });
+
+        // Mobile touch controls
+        document.getElementById("btn-up").addEventListener("click", () => {
+            if (pyodide) pyodide.runPython("set_direction('up')");
+        });
+        document.getElementById("btn-down").addEventListener("click", () => {
+            if (pyodide) pyodide.runPython("set_direction('down')");
+        });
+        document.getElementById("btn-left").addEventListener("click", () => {
+            if (pyodide) pyodide.runPython("set_direction('left')");
+        });
+        document.getElementById("btn-right").addEventListener("click", () => {
+            if (pyodide) pyodide.runPython("set_direction('right')");
+        });
+        document.getElementById("restart-btn").addEventListener("click", () => {
+            if (pyodide && !gameState.running) {
+                pyodide.runPython("restart()");
+                startGame();
+            } else if (pyodide) {
+                // Allow restart even during gameplay on mobile
+                pyodide.runPython("restart()");
+                startGame();
+            }
+        });
+
+        // Prevent scrolling when touching game controls
+        document.querySelectorAll('.control-btn').forEach(btn => {
+            btn.addEventListener('touchstart', function (e) {
+                e.preventDefault();
+            });
+        });
+
+        loadPyodideAndRun();
+    </script>
+</body>
+
+</html>
