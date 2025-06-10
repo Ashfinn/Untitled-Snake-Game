@@ -4,19 +4,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Untitled Snake Game</title>
+    <title>Snake Game</title>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Roboto:wght@400;700&display=swap"
+        rel="stylesheet">
     <style>
+        :root {
+            --background-color: #1a1a1a;
+            --game-board-bg: #0d0d0d;
+            --snake-color: #4dff4d;
+            --food-color: #ff4d4d;
+            --text-color: #f0f0f0;
+            --accent-color: #4d4dff;
+            --border-radius: 12px;
+            --shadow-color: rgba(0, 0, 0, 0.5);
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Roboto', sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background-color: #f8f9fa;
-            color: #212529;
+            background-color: var(--background-color);
+            color: var(--text-color);
             margin: 0;
-            padding: 15px;
+            padding: 20px;
             touch-action: manipulation;
             min-height: 100vh;
             width: 100%;
@@ -30,43 +45,51 @@
             flex-direction: column;
             align-items: center;
             text-align: center;
+            padding: 20px;
+            background-color: #262626;
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 30px var(--shadow-color);
         }
 
         h1 {
-            margin: 10px 0;
-            color: #343a40;
+            font-family: 'Press Start 2P', cursive;
+            margin: 0 0 15px 0;
+            color: var(--accent-color);
+            font-size: 2.5em;
+            text-shadow: 2px 2px 5px var(--shadow-color);
         }
 
         #game-board {
-            background-color: #000;
-            color: #fff;
-            padding: 10px;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
+            background-color: var(--game-board-bg);
+            color: var(--text-color);
+            padding: 15px;
+            border: 2px solid var(--accent-color);
+            border-radius: var(--border-radius);
             white-space: pre;
-            font-size: 16px;
+            font-size: 18px;
             line-height: 1.2;
             margin: 15px 0;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            box-shadow: inset 0 0 15px var(--shadow-color);
             width: 100%;
             max-width: 400px;
             overflow-x: auto;
             box-sizing: border-box;
-            font-family: monospace;
+            font-family: 'Courier New', Courier, monospace;
             text-align: center;
         }
 
         #score {
-            font-size: 18px;
+            font-size: 24px;
             margin: 10px 0;
             font-weight: bold;
-            color: #343a40;
+            color: var(--text-color);
+            font-family: 'Press Start 2P', cursive;
         }
 
         #instructions {
             font-size: 14px;
-            color: #6c757d;
-            margin: 10px 0;
+            color: #b3b3b3;
+            margin: 10px 0 20px 0;
             text-align: center;
         }
 
@@ -76,29 +99,31 @@
                 ". up ."
                 "left . right"
                 ". down .";
-            grid-gap: 10px;
+            grid-gap: 15px;
             margin-top: 20px;
         }
 
         .control-btn {
-            width: 60px;
-            height: 60px;
-            background-color: #6c757d;
-            border: none;
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(145deg, #3a3a3a, #1a1a1a);
+            border: 2px solid #444;
             color: white;
-            font-size: 24px;
+            font-size: 30px;
             display: flex;
             justify-content: center;
             align-items: center;
             cursor: pointer;
             user-select: none;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 5px 15px var(--shadow-color);
             border-radius: 50%;
+            transition: all 0.1s ease-in-out;
         }
 
         .control-btn:active {
-            background-color: #5a6268;
-            transform: scale(0.95);
+            background: linear-gradient(145deg, #1a1a1a, #3a3a3a);
+            box-shadow: 0 2px 5px var(--shadow-color);
+            transform: translateY(2px);
         }
 
         #btn-up {
@@ -125,24 +150,29 @@
         }
 
         #restart-btn {
-            margin-top: 20px;
-            padding: 10px 25px;
-            background-color: #007bff;
+            margin-top: 25px;
+            padding: 15px 35px;
+            background: var(--accent-color);
             border: none;
             color: white;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Press Start 2P', cursive;
             font-size: 16px;
             cursor: pointer;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-            border-radius: 5px;
-            transition: background-color 0.2s;
+            box-shadow: 0 5px 15px var(--shadow-color);
+            border-radius: var(--border-radius);
+            transition: all 0.2s ease;
             width: 100%;
-            max-width: 200px;
+            max-width: 250px;
+            text-transform: uppercase;
+        }
+
+        #restart-btn:hover {
+            filter: brightness(1.2);
         }
 
         #restart-btn:active {
-            background-color: #0069d9;
-            transform: scale(0.98);
+            transform: translateY(2px) scale(0.98);
+            box-shadow: 0 2px 5px var(--shadow-color);
         }
 
         /* Hide controls on larger screens */
@@ -156,10 +186,10 @@
 
 <body>
     <div class="game-container">
-        <h1>Untitled Snake Game</h1>
+        <h1>UNTITLED SNAKE GAME</h1>
         <div id="score">Score: 0</div>
         <pre id="game-board"></pre>
-        <p id="instructions">Use arrow keys or buttons to move. Press 'R' to restart after game over.</p>
+        <p id="instructions">Use arrow keys or buttons to move. Press 'R' to restart.</p>
 
         <div class="mobile-controls">
             <div class="controls">
@@ -168,7 +198,7 @@
                 <button id="btn-right" class="control-btn">→</button>
                 <button id="btn-down" class="control-btn">↓</button>
             </div>
-            <button id="restart-btn">RESTART</button>
+            <button id="restart-btn">Restart</button>
         </div>
     </div>
 
@@ -273,13 +303,24 @@ def set_direction(new_direction):
 
 def render():
     board = [[" " for _ in range(WIDTH)] for _ in range(HEIGHT)]
+    # Use different characters for snake and food for better styling possibilities
     for x, y in SNAKE:
-        board[y][x] = "O"
+        board[y][x] = "S" # Snake
     fx, fy = FOOD
-    board[fy][fx] = "X"
+    board[fy][fx] = "F" # Food
+    
     if GAME_OVER:
-        message = "Game Over! Score: " + str(SCORE) + " Press R to restart."
-        return "\\n".join(["".join(row) for row in board]) + "\\n\\n" + message
+        message = "Game Over! Score: " + str(SCORE)
+        # Center the game over message
+        for i, char in enumerate(message):
+            board[HEIGHT//2 - 1][(WIDTH - len(message))//2 + i] = char
+        
+        restart_message = "Press 'R' to restart"
+        for i, char in enumerate(restart_message):
+            board[HEIGHT//2 + 1][(WIDTH - len(restart_message))//2 + i] = char
+            
+        return "\\n".join(["".join(row) for row in board])
+        
     return "\\n".join(["".join(row) for row in board])
 
 def restart():
@@ -296,13 +337,19 @@ def restart():
         async function updateGame() {
             if (!gameState.running) return;
             await pyodide.runPythonAsync("update()");
-            let board = await pyodide.runPythonAsync("render()");
+            let boardContent = await pyodide.runPythonAsync("render()");
             let score = await pyodide.globals.get("SCORE");
             let gameOver = await pyodide.globals.get("GAME_OVER");
-            document.getElementById("game-board").textContent = board.replace(/\\n/g, "\n");
+
+            // Style the snake and food differently
+            let styledBoard = boardContent.replace(/S/g, `<span style="color:var(--snake-color);">■</span>`)
+                                         .replace(/F/g, `<span style="color:var(--food-color);">●</span>`)
+                                         .replace(/\\n/g, "\n");
+
+            document.getElementById("game-board").innerHTML = styledBoard;
             document.getElementById("score").textContent = `Score: ${score}`;
             if (!gameOver) {
-                setTimeout(updateGame, 200); // Update every 200ms
+                setTimeout(updateGame, 150); // Slightly faster game speed
             } else {
                 gameState.running = false;
             }
@@ -313,15 +360,19 @@ def restart():
             if (!pyodide) return;
             switch (event.key) {
                 case "ArrowUp":
+                case "w":
                     pyodide.runPython("set_direction('up')");
                     break;
                 case "ArrowDown":
+                case "s":
                     pyodide.runPython("set_direction('down')");
                     break;
                 case "ArrowLeft":
+                case "a":
                     pyodide.runPython("set_direction('left')");
                     break;
                 case "ArrowRight":
+                case "d":
                     pyodide.runPython("set_direction('right')");
                     break;
                 case "r":
@@ -349,45 +400,26 @@ def restart():
             }
         }
 
-        // Mobile touch controls - Add both touchstart and click events
+        // Mobile touch controls
         const btnUp = document.getElementById("btn-up");
         const btnDown = document.getElementById("btn-down");
         const btnLeft = document.getElementById("btn-left");
         const btnRight = document.getElementById("btn-right");
         const restartBtn = document.getElementById("restart-btn");
+        
+        function addTouchListener(element, callback) {
+            element.addEventListener("touchstart", function (e) {
+                e.preventDefault();
+                callback();
+            }, { passive: false });
+            element.addEventListener("click", callback);
+        }
 
-        // Add touchstart events
-        btnUp.addEventListener("touchstart", function (e) {
-            e.preventDefault();
-            handleDirectionChange("up");
-        });
-
-        btnDown.addEventListener("touchstart", function (e) {
-            e.preventDefault();
-            handleDirectionChange("down");
-        });
-
-        btnLeft.addEventListener("touchstart", function (e) {
-            e.preventDefault();
-            handleDirectionChange("left");
-        });
-
-        btnRight.addEventListener("touchstart", function (e) {
-            e.preventDefault();
-            handleDirectionChange("right");
-        });
-
-        restartBtn.addEventListener("touchstart", function (e) {
-            e.preventDefault();
-            handleRestart();
-        });
-
-        // Keep click events for compatibility
-        btnUp.addEventListener("click", () => handleDirectionChange("up"));
-        btnDown.addEventListener("click", () => handleDirectionChange("down"));
-        btnLeft.addEventListener("click", () => handleDirectionChange("left"));
-        btnRight.addEventListener("click", () => handleDirectionChange("right"));
-        restartBtn.addEventListener("click", handleRestart);
+        addTouchListener(btnUp, () => handleDirectionChange("up"));
+        addTouchListener(btnDown, () => handleDirectionChange("down"));
+        addTouchListener(btnLeft, () => handleDirectionChange("left"));
+        addTouchListener(btnRight, () => handleDirectionChange("right"));
+        addTouchListener(restartBtn, handleRestart);
 
         loadPyodideAndRun();
     </script>
