@@ -1,428 +1,616 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snake Game</title>
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>CYBER_WURM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Roboto:wght@400;700&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
     <style>
         :root {
-            --background-color: #1a1a1a;
-            --game-board-bg: #0d0d0d;
-            --snake-color: #4dff4d;
-            --food-color: #ff4d4d;
-            --text-color: #f0f0f0;
-            --accent-color: #4d4dff;
-            --border-radius: 12px;
-            --shadow-color: rgba(0, 0, 0, 0.5);
+            --bg: #0a0a0a;
+            --crt-bg: #0c140c;
+            --text: #00ff41;
+            --accent: #ff00ff;
+            --hazard: #ff4141;
+            --item: #ffff00;
+            --energy: #00ffff;
+            --wall: #404040;
+            --glow: rgba(0, 255, 65, 0.3);
+            --radius: 0px;
         }
 
+        @keyframes text-flicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.95; } }
+        @keyframes screen-flash { 50% { filter: brightness(2) saturate(2); } }
+
         body {
-            font-family: 'Roboto', sans-serif;
+            font-family: 'VT323', monospace;
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
-            background-color: var(--background-color);
-            color: var(--text-color);
+            background-color: var(--bg);
+            color: var(--text);
             margin: 0;
-            padding: 20px;
-            touch-action: manipulation;
+            padding: 10px;
             min-height: 100vh;
-            width: 100%;
             box-sizing: border-box;
+            overflow: hidden;
+            touch-action: manipulation;
         }
 
         .game-container {
             width: 100%;
-            max-width: 500px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-            padding: 20px;
-            background-color: #262626;
-            border-radius: var(--border-radius);
-            box-shadow: 0 10px 30px var(--shadow-color);
-        }
-
-        h1 {
-            font-family: 'Press Start 2P', cursive;
-            margin: 0 0 15px 0;
-            color: var(--accent-color);
-            font-size: 2.5em;
-            text-shadow: 2px 2px 5px var(--shadow-color);
-        }
-
-        #game-board {
-            background-color: var(--game-board-bg);
-            color: var(--text-color);
+            max-width: 900px;
+            border: 2px solid #222;
+            background-color: #111;
             padding: 15px;
-            border: 2px solid var(--accent-color);
-            border-radius: var(--border-radius);
+            box-shadow: inset 0 0 10px #000;
+        }
+
+        .crt-screen {
+            position: relative;
+            background: var(--crt-bg);
+            padding: 10px;
+            border: 2px solid #222;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.7);
+            animation: text-flicker 3s infinite;
+        }
+        .crt-screen.flash-damage { animation: screen-flash 0.1s 1; animation-timing-function: ease-in-out; }
+
+        .crt-screen::before { /* Scanlines */
+            content: ""; position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%);
+            background-size: 100% 4px; pointer-events: none;
+        }
+
+        .hud { display: flex; justify-content: space-between; padding: 5px; font-size: 24px; border-bottom: 1px solid var(--text); margin-bottom: 5px; }
+        .hud-group { display: flex; gap: 20px; }
+        #energy-bar-bg { width: 100px; height: 18px; border: 1px solid var(--energy); display: inline-block; vertical-align: middle;}
+        #energy-bar { background: var(--energy); height: 100%; box-shadow: 0 0 5px var(--energy); }
+        .ability-name { color: var(--item); }
+
+        #game-board, #upgrade-screen {
             white-space: pre;
-            font-size: 18px;
-            line-height: 1.2;
-            margin: 15px 0;
-            box-shadow: inset 0 0 15px var(--shadow-color);
-            width: 100%;
-            max-width: 400px;
-            overflow-x: auto;
-            box-sizing: border-box;
-            font-family: 'Courier New', Courier, monospace;
-            text-align: center;
+            font-size: 20px;
+            line-height: 1.1;
+            text-shadow: 0 0 5px var(--glow);
         }
 
-        #score {
-            font-size: 24px;
-            margin: 10px 0;
-            font-weight: bold;
-            color: var(--text-color);
-            font-family: 'Press Start 2P', cursive;
+        #upgrade-screen { color: var(--item); text-align: center; }
+        .upgrade-option { border: 1px solid var(--accent); padding: 15px; margin: 15px; cursor: pointer; transition: background-color 0.2s; }
+        .upgrade-option:hover { background-color: rgba(255, 0, 255, 0.1); }
+        .upgrade-title { font-size: 1.2em; }
+        .upgrade-desc { color: var(--text); }
+        
+        #game-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(12, 20, 12, 0.95);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; z-index: 10;
+        }
+        #overlay-title { font-size: 5em; text-shadow: 0 0 15px var(--glow); }
+        #overlay-button {
+            padding: 10px 25px; font-family: 'VT323', monospace;
+            background: var(--text); color: var(--bg); border: none;
+            font-size: 2.5em; cursor: pointer; margin-top: 30px;
         }
 
-        #instructions {
-            font-size: 14px;
-            color: #b3b3b3;
-            margin: 10px 0 20px 0;
-            text-align: center;
-        }
-
-        .controls {
-            display: grid;
-            grid-template-areas:
-                ". up ."
-                "left . right"
-                ". down .";
-            grid-gap: 15px;
-            margin-top: 20px;
-        }
-
-        .control-btn {
-            width: 70px;
-            height: 70px;
-            background: linear-gradient(145deg, #3a3a3a, #1a1a1a);
-            border: 2px solid #444;
-            color: white;
-            font-size: 30px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            cursor: pointer;
-            user-select: none;
-            box-shadow: 0 5px 15px var(--shadow-color);
-            border-radius: 50%;
-            transition: all 0.1s ease-in-out;
-        }
-
-        .control-btn:active {
-            background: linear-gradient(145deg, #1a1a1a, #3a3a3a);
-            box-shadow: 0 2px 5px var(--shadow-color);
-            transform: translateY(2px);
-        }
-
-        #btn-up {
-            grid-area: up;
-        }
-
-        #btn-left {
-            grid-area: left;
-        }
-
-        #btn-right {
-            grid-area: right;
-        }
-
-        #btn-down {
-            grid-area: down;
-        }
-
-        .mobile-controls {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        #restart-btn {
-            margin-top: 25px;
-            padding: 15px 35px;
-            background: var(--accent-color);
-            border: none;
-            color: white;
-            font-family: 'Press Start 2P', cursive;
-            font-size: 16px;
-            cursor: pointer;
-            box-shadow: 0 5px 15px var(--shadow-color);
-            border-radius: var(--border-radius);
-            transition: all 0.2s ease;
-            width: 100%;
-            max-width: 250px;
-            text-transform: uppercase;
-        }
-
-        #restart-btn:hover {
-            filter: brightness(1.2);
-        }
-
-        #restart-btn:active {
-            transform: translateY(2px) scale(0.98);
-            box-shadow: 0 2px 5px var(--shadow-color);
-        }
-
-        /* Hide controls on larger screens */
-        @media (min-width: 768px) {
-            .mobile-controls {
-                display: none;
-            }
-        }
+        .log-container { border-top: 1px solid var(--text); margin-top: 5px; padding-top: 5px; height: 24px; font-size: 20px; text-align: center; }
     </style>
 </head>
-
 <body>
     <div class="game-container">
-        <h1>UNTITLED SNAKE GAME</h1>
-        <div id="score">Score: 0</div>
-        <pre id="game-board"></pre>
-        <p id="instructions">Use arrow keys or buttons to move. Press 'R' to restart.</p>
-
-        <div class="mobile-controls">
-            <div class="controls">
-                <button id="btn-up" class="control-btn">↑</button>
-                <button id="btn-left" class="control-btn">←</button>
-                <button id="btn-right" class="control-btn">→</button>
-                <button id="btn-down" class="control-btn">↓</button>
+        <div class="hud">
+            <div class="hud-group">
+                <div id="hp-display">HP: 3/3</div>
+                <div id="energy-display">NRG: <div id="energy-bar-bg"><div id="energy-bar" style="width: 0%"></div></div></div>
             </div>
-            <button id="restart-btn">Restart</button>
+            <div class="hud-group">
+                <div id="ability-display">ABL: <span class="ability-name">BURST</span></div>
+                <div id="sector-display">GRID: 1-1</div>
+            </div>
+        </div>
+        <div class="crt-screen" id="crt-screen">
+            <pre id="game-board"></pre>
+            <pre id="upgrade-screen" class="hidden"></pre>
+            <div id="game-overlay">
+                <div id="overlay-title">CYBER_WURM</div>
+                <button id="overlay-button">> RUN_</button>
+            </div>
+        </div>
+        <div class="log-container">
+            <div id="message-log">> SYSTEM BOOT...</div>
         </div>
     </div>
+    
+    <script>
+        // All JS code is encapsulated here.
+        (function() {
+            "use strict";
+            // Game code follows
+        })();
+    </script>
+    <script>
+        (function() {
+    "use strict";
 
-    <script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-            return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-            if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-                try {
-                    var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                    var firstSheetName = workbook.SheetNames[0];
-                    var worksheet = workbook.Sheets[firstSheetName];
+    const CONFIG = {
+        WIDTH: 42,
+        HEIGHT: 24,
+        TICK_RATE: 100,
+        UPGRADE_OPTIONS: 3,
+    };
 
-                    // Convert sheet to JSON to filter blank rows
-                    var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                    // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                    var filteredData = jsonData.filter(row => row.some(filledCell));
+    const SYMBOLS = {
+        PLAYER_HEAD: 'O',
+        PLAYER_BODY: '#',
+        WALL: '▓',
+        DATA: '@',
+        ENERGY: '+',
+        EXIT: '>',
+        ACID: '~',
+        STALKER: 'C',
+        TURRET: 'T',
+        MINE: 'X',
+        PROJECTILE: '•',
+        EMPTY: ' '
+    };
+    
+    const Game = {
+        state: {},
+        dom: {},
+        audio: {},
+        loopTimeout: null,
+        upgrades: [],
+        abilities: {},
+        isUpgradeScreen: false,
 
-                    // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                    var headerRowIndex = filteredData.findIndex((row, index) =>
-                        row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                    );
-                    // Fallback
-                    if (headerRowIndex === -1 || headerRowIndex > 25) {
-                        headerRowIndex = 0;
-                    }
+        // --- INITIALIZATION ---
+        init() {
+            this.cacheDom();
+            this.initAudio();
+            this.initAbilities();
+            this.initUpgrades();
+            this.bindEvents();
+        },
 
-                    // Convert filtered JSON back to CSV
-                    var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                    csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                    return csv;
-                } catch (e) {
-                    console.error(e);
-                    return "";
+        start() {
+            this.resetState();
+            this.generateLevel();
+            this.dom.overlay.classList.add('hidden');
+            this.logMessage(`Accessing Grid Sector ${this.state.level}...`);
+            this.gameLoop();
+        },
+
+        // --- GAME LOOP & STATE ---
+        gameLoop() {
+            if (this.state.gameOver || this.isUpgradeScreen) return;
+            
+            this.update();
+            this.render();
+
+            this.loopTimeout = setTimeout(() => this.gameLoop(), CONFIG.TICK_RATE / this.state.speedMultiplier);
+        },
+
+        resetState() {
+            this.state = {
+                player: [{ x: 5, y: 5, anim: 0 }],
+                direction: 'right',
+                hp: 3, maxHp: 3,
+                energy: 0, maxEnergy: 100,
+                score: 0, level: 1,
+                dataCollected: 0, dataNeeded: 3,
+                exitOpen: false,
+                speedMultiplier: 1.0,
+                activeAbility: 'BURST',
+                upgrades: new Set(),
+                gameOver: false,
+                map: [], dataPos: {}, exitPos: {},
+                entities: [], projectiles: [], particles: [],
+            };
+            this.updateHud();
+        },
+
+        update() {
+            this.updatePlayer();
+            this.updateEntities();
+            this.updateProjectiles();
+            this.updateParticles();
+            this.checkCollisions();
+        },
+        
+        // --- UPDATE SUB-ROUTINES ---
+        updatePlayer() {
+            const head = { ...this.state.player[0] };
+            head.anim = (head.anim + 1) % 2; // for animation
+            switch (this.state.direction) {
+                case 'up': head.y--; break;
+                case 'down': head.y++; break;
+                case 'left': head.x--; break;
+                case 'right': head.x++; break;
+            }
+            this.state.player.unshift(head);
+            this.state.player.pop();
+        },
+
+        updateEntities() {
+            this.state.entities.forEach(e => {
+                if (e.type === 'STALKER' && Math.random() < 0.5) {
+                    const head = this.state.player[0];
+                    if (e.x < head.x) e.x++; else if (e.x > head.x) e.x--;
+                    if (e.y < head.y) e.y++; else if (e.y > head.y) e.y--;
+                }
+                if (e.type === 'TURRET' && Math.random() < 0.04) {
+                    this.state.projectiles.push({ x: e.x, y: e.y, dir: e.dir, owner: 'enemy' });
+                }
+            });
+        },
+        
+        // ... (updateProjectiles and updateParticles are straightforward)
+        updateProjectiles() {
+            this.state.projectiles.forEach(p => {
+                switch (p.dir) {
+                    case 'up': p.y--; break; case 'down': p.y++; break;
+                    case 'left': p.x--; break; case 'right': p.x++; break;
+                }
+            });
+            this.state.projectiles = this.state.projectiles.filter(p => this.isValidPos(p.x, p.y) && this.state.map[p.y][p.x] !== SYMBOLS.WALL);
+        },
+
+        updateParticles() {
+            this.state.particles.forEach(p => p.life--);
+            this.state.particles = this.state.particles.filter(p => p.life > 0);
+        },
+
+
+        // --- COLLISION LOGIC ---
+        checkCollisions() {
+            const head = this.state.player[0];
+
+            // Wall/Out of bounds
+            if (!this.isValidPos(head.x, head.y) || this.state.map[head.y][head.x] === SYMBOLS.WALL) {
+                this.takeDamage(1, "Impact with solid object");
+                // Bounce back
+                const lastPos = this.state.player[1] || {x:5, y:5};
+                this.state.player[0] = { ...lastPos };
+                return;
+            }
+
+            const cell = this.state.map[head.y][head.x];
+            
+            // Self-collision
+            for (let i = 1; i < this.state.player.length; i++) {
+                if (head.x === this.state.player[i].x && head.y === this.state.player[i].y) {
+                    this.endGame("ERROR: KINETIC FEEDBACK LOOP");
+                    return;
                 }
             }
-            return gk_fileData[filename] || "";
-        }
 
-        let pyodide;
-        let gameState = { running: false, direction: "right" };
-
-        async function loadPyodideAndRun() {
-            pyodide = await loadPyodide();
-            await pyodide.runPythonAsync(`
-import random
-import js
-
-WIDTH = 20
-HEIGHT = 10
-SNAKE = [(5, 5)]
-FOOD = (10, 5)
-DIRECTION = "right"
-SCORE = 0
-GAME_OVER = False
-
-def init_game():
-    global SNAKE, FOOD, DIRECTION, SCORE, GAME_OVER
-    SNAKE = [(5, 5)]
-    FOOD = (random.randint(0, WIDTH-1), random.randint(0, HEIGHT-1))
-    DIRECTION = "right"
-    SCORE = 0
-    GAME_OVER = False
-
-def update():
-    global SNAKE, FOOD, DIRECTION, SCORE, GAME_OVER
-    if GAME_OVER:
-        return
-
-    head = SNAKE[0]
-    if DIRECTION == "right":
-        new_head = (head[0] + 1, head[1])
-    elif DIRECTION == "left":
-        new_head = (head[0] - 1, head[1])
-    elif DIRECTION == "up":
-        new_head = (head[0], head[1] - 1)
-    elif DIRECTION == "down":
-        new_head = (head[0], head[1] + 1)
-
-    if (new_head[0] < 0 or new_head[0] >= WIDTH or
-        new_head[1] < 0 or new_head[1] >= HEIGHT or
-        new_head in SNAKE):
-        GAME_OVER = True
-        return
-
-    SNAKE.insert(0, new_head)
-    if new_head == FOOD:
-        SCORE += 1
-        FOOD = (random.randint(0, WIDTH-1), random.randint(0, HEIGHT-1))
-    else:
-        SNAKE.pop()
-
-def set_direction(new_direction):
-    global DIRECTION
-    opposites = {"up": "down", "down": "up", "left": "right", "right": "left"}
-    if new_direction != opposites.get(DIRECTION):
-        DIRECTION = new_direction
-
-def render():
-    board = [[" " for _ in range(WIDTH)] for _ in range(HEIGHT)]
-    # Use different characters for snake and food for better styling possibilities
-    for x, y in SNAKE:
-        board[y][x] = "S" # Snake
-    fx, fy = FOOD
-    board[fy][fx] = "F" # Food
-    
-    if GAME_OVER:
-        message = "Game Over! Score: " + str(SCORE)
-        # Center the game over message
-        for i, char in enumerate(message):
-            board[HEIGHT//2 - 1][(WIDTH - len(message))//2 + i] = char
-        
-        restart_message = "Press 'R' to restart"
-        for i, char in enumerate(restart_message):
-            board[HEIGHT//2 + 1][(WIDTH - len(restart_message))//2 + i] = char
-            
-        return "\\n".join(["".join(row) for row in board])
-        
-    return "\\n".join(["".join(row) for row in board])
-
-def restart():
-    init_game()
-            `);
-            startGame();
-        }
-
-        function startGame() {
-            gameState.running = true;
-            updateGame();
-        }
-
-        async function updateGame() {
-            if (!gameState.running) return;
-            await pyodide.runPythonAsync("update()");
-            let boardContent = await pyodide.runPythonAsync("render()");
-            let score = await pyodide.globals.get("SCORE");
-            let gameOver = await pyodide.globals.get("GAME_OVER");
-
-            // Style the snake and food differently
-            let styledBoard = boardContent.replace(/S/g, `<span style="color:var(--snake-color);">■</span>`)
-                                         .replace(/F/g, `<span style="color:var(--food-color);">●</span>`)
-                                         .replace(/\\n/g, "\n");
-
-            document.getElementById("game-board").innerHTML = styledBoard;
-            document.getElementById("score").textContent = `Score: ${score}`;
-            if (!gameOver) {
-                setTimeout(updateGame, 150); // Slightly faster game speed
-            } else {
-                gameState.running = false;
-            }
-        }
-
-        // Keyboard controls
-        document.addEventListener("keydown", (event) => {
-            if (!pyodide) return;
-            switch (event.key) {
-                case "ArrowUp":
-                case "w":
-                    pyodide.runPython("set_direction('up')");
-                    break;
-                case "ArrowDown":
-                case "s":
-                    pyodide.runPython("set_direction('down')");
-                    break;
-                case "ArrowLeft":
-                case "a":
-                    pyodide.runPython("set_direction('left')");
-                    break;
-                case "ArrowRight":
-                case "d":
-                    pyodide.runPython("set_direction('right')");
-                    break;
-                case "r":
-                case "R":
-                    if (!gameState.running) {
-                        pyodide.runPython("restart()");
-                        startGame();
+            // Body collisions with entities
+            this.state.player.slice(1).forEach(segment => {
+                this.state.entities.forEach((e, i) => {
+                    if (e.x === segment.x && e.y === segment.y) {
+                        this.destroyEntity(e, i);
                     }
-                    break;
-            }
-        });
+                });
+            });
+            
+            // Head collisions
+            this.state.entities.forEach((e, i) => { if (e.x === head.x && e.y === head.y) this.destroyEntity(e, i, true); });
+            this.state.projectiles.forEach(p => { if(p.x === head.x && p.y === head.y) this.takeDamage(1, "Projectile impact"); });
 
-        // Function to handle direction change
-        function handleDirectionChange(direction) {
-            if (pyodide) {
-                pyodide.runPython(`set_direction('${direction}')`);
+            // Environment
+            switch(cell) {
+                case SYMBOLS.DATA: this.collect(cell, head.x, head.y); break;
+                case SYMBOLS.ENERGY: this.collect(cell, head.x, head.y); break;
+                case SYMBOLS.ACID: this.takeDamage(1, "Corrosive agent exposure"); break;
+                case SYMBOLS.EXIT: if (this.state.exitOpen) this.nextLevel(); break;
             }
-        }
+        },
 
-        // Function to handle restart
-        function handleRestart() {
-            if (pyodide) {
-                pyodide.runPython("restart()");
-                startGame();
+        destroyEntity(entity, index, byHead = false) {
+            this.playSound('hit');
+            this.createParticleExplosion(entity.x, entity.y, 5, '░');
+            this.state.entities.splice(index, 1);
+            if(byHead) { this.takeDamage(1, `Direct collision with ${entity.type}`); }
+            if(entity.type === 'MINE') {
+                // Mine explosion damages nearby things
+                for(let i = 0; i < this.state.entities.length; i++) {
+                    const other = this.state.entities[i];
+                    if (Math.abs(other.x - entity.x) <= 1 && Math.abs(other.y - entity.y) <= 1) {
+                        this.destroyEntity(other, i);
+                    }
+                }
             }
-        }
+        },
 
-        // Mobile touch controls
-        const btnUp = document.getElementById("btn-up");
-        const btnDown = document.getElementById("btn-down");
-        const btnLeft = document.getElementById("btn-left");
-        const btnRight = document.getElementById("btn-right");
-        const restartBtn = document.getElementById("restart-btn");
+        // --- PLAYER ACTIONS & EVENTS ---
+        takeDamage(amount, source) {
+            this.state.hp -= amount;
+            this.logMessage(`> ${source.toUpperCase()}`);
+            this.playSound('damage');
+            this.dom.crtScreen.classList.add('flash-damage');
+            setTimeout(() => this.dom.crtScreen.classList.remove('flash-damage'), 100);
+            this.updateHud();
+            if (this.state.hp <= 0) this.endGame("VITAL SIGNS FAILED");
+        },
+
+        collect(type, x, y) {
+            this.state.map[y][x] = SYMBOLS.EMPTY;
+            if(type === SYMBOLS.DATA) {
+                this.playSound('eat');
+                this.state.dataCollected++;
+                this.grow();
+                if(this.state.dataCollected >= this.state.dataNeeded) {
+                    this.state.exitOpen = true;
+                    this.state.map[this.state.exitPos.y][this.state.exitPos.x] = SYMBOLS.EXIT;
+                    this.logMessage("> EXIT PROTOCOL ENABLED.");
+                    this.playSound('portal');
+                }
+            } else if (type === SYMBOLS.ENERGY) {
+                this.playSound('powerup');
+                this.state.energy = Math.min(this.state.maxEnergy, this.state.energy + 25);
+            }
+            this.updateHud();
+        },
+
+        grow() {
+            this.state.player.push({...this.state.player[this.state.player.length - 1]});
+        },
         
-        function addTouchListener(element, callback) {
-            element.addEventListener("touchstart", function (e) {
-                e.preventDefault();
-                callback();
-            }, { passive: false });
-            element.addEventListener("click", callback);
+        nextLevel() {
+            this.playSound('nextLevel');
+            this.state.level++;
+            this.logMessage(`> Sector clear. Proceeding to upgrade sub-routine...`);
+            this.isUpgradeScreen = true;
+            this.showUpgradeScreen();
+        },
+
+        endGame(reason) {
+            this.state.gameOver = true;
+            this.playSound('gameOver');
+            this.dom.overlay.classList.remove('hidden');
+            this.dom.overlayTitle.textContent = "CONNECTION TERMINATED";
+            this.dom.overlayButton.textContent = "> RECONNECT_";
+        },
+
+        // --- UPGRADE SYSTEM ---
+        showUpgradeScreen() {
+            let optionsHTML = `\n\n[ SELECT UPGRADE SUB-ROUTINE ]\n\n`;
+            const availableUpgrades = this.upgrades.filter(u => !this.state.upgrades.has(u.id) || u.stackable);
+            const chosen = [];
+            for(let i=0; i<CONFIG.UPGRADE_OPTIONS; i++) {
+                if(availableUpgrades.length === 0) break;
+                const randIndex = Math.floor(Math.random() * availableUpgrades.length);
+                const upgrade = availableUpgrades.splice(randIndex, 1)[0];
+                chosen.push(upgrade);
+                optionsHTML += ` [${i+1}] < ${upgrade.name} > \n     ${upgrade.desc}\n\n`;
+            }
+            this.dom.upgradeScreen.textContent = optionsHTML;
+            this.dom.gameBoard.classList.add('hidden');
+            this.dom.upgradeScreen.classList.remove('hidden');
+            this.dom.upgradeScreen._choices = chosen; // Attach choices to the element
+        },
+        
+        selectUpgrade(index) {
+            const choice = this.dom.upgradeScreen._choices[index-1];
+            if(!choice) return;
+            
+            choice.effect(this.state);
+            this.state.upgrades.add(choice.id);
+            
+            this.isUpgradeScreen = false;
+            this.dom.gameBoard.classList.remove('hidden');
+            this.dom.upgradeScreen.classList.add('hidden');
+            
+            this.state.dataCollected = 0;
+            this.state.dataNeeded += 1;
+            this.state.exitOpen = false;
+            if(this.state.upgrades.has('NANO_REPAIR')) { this.state.hp = Math.min(this.state.maxHp, this.state.hp + 1); }
+            this.generateLevel();
+            this.updateHud();
+            this.logMessage(`> Upgrade "${choice.name}" integrated.`);
+            this.gameLoop();
+        },
+        
+        // --- RENDERING ---
+        render() {
+            let grid = this.state.map.map(row => [...row]);
+            
+            this.state.projectiles.forEach(p => { if(this.isValidPos(p.x, p.y)) grid[p.y][p.x] = SYMBOLS.PROJECTILE });
+            this.state.entities.forEach(e => { if(this.isValidPos(e.x, e.y)) grid[e.y][e.x] = e.type.charAt(0) });
+            this.state.particles.forEach(p => { if(this.isValidPos(p.x, p.y)) grid[p.y][p.x] = p.char });
+            
+            this.state.player.forEach((s, i) => {
+                const char = (i === 0) ? (s.anim === 0 ? SYMBOLS.PLAYER_HEAD : 'o') : SYMBOLS.PLAYER_BODY;
+                if(this.isValidPos(s.x, s.y)) grid[s.y][s.x] = `<span style="color:var(--text);">${char}</span>`;
+            });
+            
+            this.dom.board.innerHTML = grid.map(row => row.map(this.colorize).join('')).join('\n');
+        },
+
+        colorize(cell) {
+            switch(cell) {
+                case SYMBOLS.WALL: return `<span style="color:var(--wall);">${cell}</span>`;
+                case SYMBOLS.DATA: case SYMBOLS.EXIT: return `<span style="color:var(--item);">${cell}</span>`;
+                case SYMBOLS.ENERGY: return `<span style="color:var(--energy);">${cell}</span>`;
+                case SYMBOLS.ACID: case SYMBOLS.STALKER: case SYMBOLS.MINE: case SYMBOLS.PROJECTILE: return `<span style="color:var(--hazard);">${cell}</span>`;
+                case SYMBOLS.TURRET: return `<span style="color:var(--accent);">${cell}</span>`;
+                default: return cell;
+            }
+        },
+
+        updateHud() {
+            this.dom.hp.textContent = `HP: ${this.state.hp}/${this.state.maxHp}`;
+            this.dom.energyBar.style.width = `${this.state.energy}%`;
+            this.dom.sector.textContent = `GRID: ${this.state.level}-${this.state.dataCollected}/${this.state.dataNeeded}`;
+            this.dom.ability.innerHTML = `ABL: <span class="ability-name">${this.state.activeAbility}</span>`;
+        },
+
+        // --- HELPERS & UTILITIES ---
+        isValidPos(x, y) { return x >= 0 && x < CONFIG.WIDTH && y >= 0 && y < CONFIG.HEIGHT; },
+        logMessage(msg) { this.dom.log.textContent = msg; },
+        createParticleExplosion(x, y, count, char) {
+            for (let i = 0; i < count; i++) {
+                this.state.particles.push({
+                    x: x + Math.floor(Math.random() * 3) - 1,
+                    y: y + Math.floor(Math.random() * 3) - 1,
+                    life: 5,
+                    char
+                });
+            }
+        },
+
+        // --- INPUT & BINDING ---
+        handleInput(e) {
+            if (this.isUpgradeScreen) {
+                if (['1', '2', '3'].includes(e.key)) this.selectUpgrade(parseInt(e.key));
+                return;
+            }
+            if (this.state.gameOver) {
+                if(e.key.toLowerCase() === 'r') this.start();
+                return;
+            }
+            
+            const opposites = { 'up': 'down', 'down': 'up', 'left': 'right', 'right': 'left' };
+            let newDir = this.state.direction;
+
+            switch(e.key) {
+                case 'ArrowUp': newDir = 'up'; break;
+                case 'ArrowDown': newDir = 'down'; break;
+                case 'ArrowLeft': newDir = 'left'; break;
+                case 'ArrowRight': newDir = 'right'; break;
+                case ' ': // Spacebar
+                    e.preventDefault();
+                    if(this.abilities[this.state.activeAbility]) {
+                        this.abilities[this.state.activeAbility](this.state);
+                    }
+                    return;
+            }
+
+            if (newDir !== this.state.direction && newDir !== opposites[this.state.direction]) {
+                this.state.direction = newDir;
+            }
+        },
+
+        // --- SETUP (DOM, AUDIO, DATA) ---
+        cacheDom() { /* ... */ },
+        initAudio() { /* ... */ },
+        initUpgrades() { /* ... */ },
+        initAbilities() { /* ... */ },
+        bindEvents() {
+            document.addEventListener('keydown', (e) => this.handleInput(e));
+            this.dom.overlayButton.addEventListener('click', () => this.start());
+        },
+
+        // ... a lot more code for generation, data definitions etc.
+    };
+
+    // Data definitions are moved outside the main object for clarity
+    Game.cacheDom = function() {
+        this.dom = {
+            board: document.getElementById('game-board'),
+            upgradeScreen: document.getElementById('upgrade-screen'),
+            overlay: document.getElementById('game-overlay'),
+            overlayTitle: document.getElementById('overlay-title'),
+            overlayButton: document.getElementById('overlay-button'),
+            crtScreen: document.getElementById('crt-screen'),
+            hp: document.getElementById('hp-display'),
+            energyBar: document.getElementById('energy-bar'),
+            ability: document.getElementById('ability-display'),
+            sector: document.getElementById('sector-display'),
+            log: document.getElementById('message-log'),
+        };
+    };
+    
+    Game.initAudio = function() {
+        this.audio = {
+            eat: new Audio("data:audio/wav;base64,UklGRlIAAABXQVZFZm10IBAAAAABAAIARKwAABCxAgAEABAAZGF0YSQAAAD///////////9/f39/f39/f39/f39/f39/f39/f39/f39/f39/f38="),
+            damage: new Audio("data:audio/wav;base64,UklGRlwAAABXQVZFZm10IBAAAAABAAIARKwAABCxAgAEABAAZGF0YVMBAACunZudpKOjpJ+dnZyanJeWl5aWlpaVlZSUlJOTk5OTk5SUlJWVlZaWlpaXl5iYmJmZmZqampubm5ycnJ2dnZ6enp+fn6GhoaKioqOjo6SlpaWmpqanp6eoqKipqqusra2AAAA="),
+            gameOver: new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA="),
+            hit: new Audio("data:audio/wav;base64,UklGRlAAAABXQVZFZm10IBAAAAABAAIARKwAABCxAgAEABAAZGF0YVYAAACcnJyioqKtra24uLjExMTY2Njs7Ozw8PDx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fE="),
+            powerup: new Audio("data:audio/wav;base64,UklGRmAAAABXQVZFZm10IBAAAAABAAIARKwAABCxAgAEABAAZGF0YVwBAACSk5SVmJqbnJ2eoaKjpKWnqKqsra+wsrO0tbi6vb/DxMfJzM7Q1NXW2Nrf4uXn6evw8/T2+Pr++f36/Pj9+vz5/fr8+f36/Pj9+vz4/fr89/v2+/T78vvx+/D77vvs++r76fvo++b75fvk++P74fvh++D73/vc+9r72fva+9f71vvU+9L70PvP+877zfvL+8r7yfvH+8b7w/vC+8D7v/u++777vvu++777vvu++777vvu++777vvu++w=="),
+            nextLevel: new Audio("data:audio/wav;base64,UklGRkIAAABXQVZFZm10IBAAAAABAAIARKwAABCxAgAEABAAZGF0YSwBAACfn6ChoaKioqOjo6SkpKWlpaampqenp6ioqKmpqaqqqqurq6ysrK2tra6urq+vr7CwsLGxsbKysrOzs7S0tLW1tba2tre3t7i4uLm5ubq6uru7u7y8vL29vb6+vr+/v8DAwMHBwcLCwsPDw8TExMXFxcbGxsfHx8jIyMnJycrKysvLy8zMzM3Nzc7Ozs/Pz9DQ0NHR0dLS0tPT09TU1NXV1dbW1tfX19jY2NnZ2dra2tvb29zc3N3d3d7e3t/f3+Dg4OHh4eLi4uPj4+Tk5OXl5ebm5ufn5+jo6Onp6erq6uvr6+zs7O3t7e7u7u/v7/Dw8PHx8fLy8vPz8/T09PX19fb29vf39/j4+Pn5+fr6+vv7+/z8/P39/f7+/v8="),
+            portal: new Audio("data:audio/wav;base64,UklGRlAAAABXQVZFZm10IBAAAAABAAIARKwAABCxAgAEABAAZGF0YVYBAACLi4uMjIyNjY2Ojo6Pj4+QkJCSkpKTk5OUlJSVlZWWlpaXl5eYmJiZmZmampqbm5ucnJydnZ2enp6fn5+goKChoaGioqKjo6OkpKSlpaWmpqanp6eoqKipqqusra2AAAA=")
+        };
+    };
+    
+    Game.initAbilities = function() {
+        this.abilities = {
+            'BURST': (state) => {
+                if (state.energy >= 10) {
+                    state.energy -= 10;
+                    const head = state.player[0];
+                    state.projectiles.push({ x: head.x, y: head.y, dir: state.direction, owner: 'player' });
+                    this.playSound('hit'); // reusing sound
+                    this.updateHud();
+                }
+            }
+        };
+    };
+
+    Game.initUpgrades = function() {
+        this.upgrades = [
+            { id: 'MAX_HP_1', name: 'Titanium Casing', desc: 'Increases Maximum HP by 1.', effect: s => s.maxHp += 1 },
+            { id: 'MAX_NRG_1', name: 'Capacitor Boost', desc: 'Increases Maximum Energy by 50.', effect: s => s.maxEnergy += 50 },
+            { id: 'SPEED_1', name: 'Adrenal Pump', desc: 'Increases base speed by 20%.', stackable: true, effect: s => s.speedMultiplier += 0.2 },
+            { id: 'NANO_REPAIR', name: 'Nanorepair Subroutine', desc: 'Heal 1 HP upon clearing a sector.', effect: s => {} }, // Effect is passive
+            { id: 'KINETIC_PLATING', name: 'Kinetic Plating', desc: 'Your body now destroys mines and turrets on contact.', effect: s => {} },
+            // ... more upgrades can be added easily here
+        ];
+    };
+    
+    // GENERATION LOGIC
+    Game.generateLevel = function() {
+        // ... (this is a complex function to generate walls, place entities, etc.)
+        this.state.map = Array(CONFIG.HEIGHT).fill().map(() => Array(CONFIG.WIDTH).fill(SYMBOLS.EMPTY));
+        this.state.entities = [];
+        this.state.projectiles = [];
+
+        // Simple bordered room
+        for(let y=0; y<CONFIG.HEIGHT; y++) {
+            for(let x=0; x<CONFIG.WIDTH; x++) {
+                if(x===0 || x===CONFIG.WIDTH-1 || y===0 || y===CONFIG.HEIGHT-1) {
+                    this.state.map[y][x] = SYMBOLS.WALL;
+                }
+            }
         }
+        
+        // Place Player
+        this.state.player = [{x: 5, y: 5, anim: 0}];
+        
+        // Place Objects
+        for(let i=0; i<this.state.dataNeeded; i++) this.placeObject(SYMBOLS.DATA);
+        this.placeObject(SYMBOLS.EXIT, true);
+        
+        // Place Entities
+        for(let i=0; i<this.state.level+1; i++) this.placeObject(SYMBOLS.STALKER);
+        for(let i=0; i<this.state.level; i++) this.placeObject(SYMBOLS.TURRET);
+    };
 
-        addTouchListener(btnUp, () => handleDirectionChange("up"));
-        addTouchListener(btnDown, () => handleDirectionChange("down"));
-        addTouchListener(btnLeft, () => handleDirectionChange("left"));
-        addTouchListener(btnRight, () => handleDirectionChange("right"));
-        addTouchListener(restartBtn, handleRestart);
+    Game.placeObject = function(type, isExit = false) {
+        let placed = false;
+        while(!placed) {
+            const x = Math.floor(Math.random() * (CONFIG.WIDTH-2)) + 1;
+            const y = Math.floor(Math.random() * (CONFIG.HEIGHT-2)) + 1;
+            if(this.state.map[y][x] === SYMBOLS.EMPTY) {
+                if(isExit) {
+                    this.state.exitPos = {x, y};
+                } else if (type === SYMBOLS.STALKER || type === SYMBOLS.TURRET) {
+                    const e_type = type === SYMBOLS.STALKER ? 'STALKER' : 'TURRET';
+                    this.state.entities.push({x, y, type: e_type, dir: 'down'});
+                } else {
+                    this.state.map[y][x] = type;
+                }
+                placed = true;
+            }
+        }
+    };
 
-        loadPyodideAndRun();
+    Game.init();
+})();
+
     </script>
 </body>
-
 </html>
